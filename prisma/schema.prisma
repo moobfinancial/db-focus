@@ -1,0 +1,200 @@
+// This is your Prisma schema file
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User model for authentication and ownership
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  company       String?
+  role          UserRole  @default(USER)
+  phoneNumber   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  settings      Json      // Stores user preferences as JSON
+  contacts      Contact[]
+  goals         Goal[]
+  campaigns     Campaign[]
+  templates     WhisperTemplate[]
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+// Contact model with improved relationships
+model Contact {
+  id                String            @id @default(cuid())
+  userId            String
+  name              String
+  email             String
+  phone             String
+  type              ContactType
+  transparencyLevel TransparencyLevel
+  subcategory       String?
+  customSubcategory String?
+  campaignId        String?
+  tags              String[]
+  notes             String?           @db.Text
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  lastContactedAt   DateTime?
+  
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign          Campaign?         @relation(fields: [campaignId], references: [id])
+  goals             ContactGoal[]
+  calls             Call[]
+
+  @@index([userId])
+  @@index([campaignId])
+}
+
+enum ContactType {
+  PERSONAL
+  BUSINESS
+}
+
+enum TransparencyLevel {
+  FULL
+  PARTIAL
+  NONE
+}
+
+// Goal model for reusable templates
+model Goal {
+  id          String        @id @default(cuid())
+  userId      String
+  title       String
+  description String?       @db.Text
+  type        GoalType
+  priority    Int          @default(1)
+  isTemplate  Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts    ContactGoal[]
+
+  @@index([userId])
+}
+
+enum GoalType {
+  BUSINESS
+  PERSONAL
+  BOTH
+}
+
+// Junction table for contact-goal relationship
+model ContactGoal {
+  id          String    @id @default(cuid())
+  contactId   String
+  goalId      String
+  status      GoalStatus
+  dueDate     DateTime?
+  progress    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([goalId])
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// Campaign model for managing contact groups
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String?   @db.Text
+  startDate   DateTime
+  endDate     DateTime?
+  status      CampaignStatus
+  contacts    Contact[]
+  goals       Json[]    // Array of campaign-specific goals
+  metrics     Json      // Campaign performance metrics
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+// Call/Conversation tracking
+model Call {
+  id          String    @id @default(cuid())
+  userId      String
+  contactId   String
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?      // Duration in seconds
+  status      CallStatus
+  recording   Json?     // Recording metadata
+  transcript  Json[]    // Array of conversation entries
+  goals       Json[]    // Goals discussed during call
+  metrics     Json      // Call performance metrics
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contactId])
+}
+
+enum CallStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// Whisper templates for AI assistance
+model WhisperTemplate {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  type          TemplateType
+  systemPrompt  String    @db.Text
+  editablePrompt String   @db.Text
+  isSystem      Boolean   @default(false)
+  isHidden      Boolean   @default(false)
+  tags          String[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum TemplateType {
+  BUSINESS
+  PERSONAL
+}
