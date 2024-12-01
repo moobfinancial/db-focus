@@ -1,9 +1,34 @@
 export interface Contact {
   id: string;
   name: string;
-  number: string;
+  phone: string;
   email: string;
-  type: 'business' | 'personal';
+  type: 'personal' | 'campaign';
+  isShared: boolean;
+  campaignId?: string;
+  campaignName?: string;
+  tags: string[];
+  goals: WhisperGoal[];
+  lastContactedAt?: Date;
+  notes?: string;
+}
+
+export interface WhisperGoal {
+  id: string;
+  title: string;
+  description: string;
+  goalType: 'business' | 'personal' | 'both';
+  campaignId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContactTag {
+  id: string;
+  contactId: string;
+  campaignId?: string;
+  tagName: string;
+  createdAt: Date;
 }
 
 export interface CallTranscriptEntry {
@@ -21,9 +46,9 @@ export interface WhisperState {
   showWhisperSetupDialog: boolean;
   newContact: {
     name: string;
-    number: string;
+    phone: string;
     email: string;
-    type: 'business' | 'personal';
+    type: 'personal' | 'campaign';
   };
   contactSearch: string;
   showContactsSheet: boolean;
