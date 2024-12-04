@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,332 +7,409 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, CheckCircle, Target } from 'lucide-react';
-
-interface WhisperGoal {
-  id: string;
-  title: string;
-  prompt: string;
-  successCriteria: string[];
-  progress: number;
-  isSelected?: boolean;
-  category: string;
-  priority: 'low' | 'medium' | 'high';
-  feedback: string[];
-  lastUpdated: Date;
-}
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Edit, Trash2, CheckCircle, Target, MessageCircle } from 'lucide-react';
+import { Contact, Goal, ContactGoal } from '../types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { toast } from '@/components/ui/use-toast';
 
 interface WhisperGoalsProps {
-  selectedGoals: string[];
-  onGoalsChange: (goals: string[]) => void;
-  onProgressUpdate?: (goalId: string, progress: number) => void;
-  onFeedbackAdd?: (goalId: string, feedback: string) => void;
+  contact: Contact;
+  onGoalUpdate: (goalId: string, updates: Partial<ContactGoal>) => Promise<void>;
+  onGoalAdd: (goal: Partial<Goal>) => Promise<void>;
 }
 
-export function WhisperGoals({ 
-  selectedGoals, 
-  onGoalsChange, 
-  onProgressUpdate, 
-  onFeedbackAdd 
-}: WhisperGoalsProps) {
-  const [goals, setGoals] = useState<WhisperGoal[]>([
-    {
-      id: '1',
-      title: 'Active Listening',
-      prompt: 'Help me demonstrate active listening by suggesting appropriate responses and follow-up questions.',
-      successCriteria: [
-        'Acknowledge speaker\'s points',
-        'Ask relevant follow-up questions',
-        'Summarize key points'
-      ],
-      progress: 0,
-      category: 'Communication',
-      priority: 'high',
-      feedback: [],
-      lastUpdated: new Date()
-    }
-  ]);
-  
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<WhisperGoal | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+export function WhisperGoals({ contact, onGoalUpdate, onGoalAdd }: WhisperGoalsProps) {
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [showFeedback, setShowFeedback] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [newGoal, setNewGoal] = useState<Partial<Goal>>({
+    title: '',
+    description: '',
+    type: 'PERSONAL',
+    priority: 1,
+    successCriteria: [],
+    category: '',
+    feedback: [],
+    contacts: [],
+  });
+  const [newFeedback, setNewFeedback] = useState('');
+  const [newSuccessCriteria, setNewSuccessCriteria] = useState('');
 
-  const handleGoalSelect = (goalId: string) => {
-    if (selectedGoals.includes(goalId)) {
-      onGoalsChange(selectedGoals.filter(id => id !== goalId));
-    } else {
-      onGoalsChange([...selectedGoals, goalId]);
+  const handleProgressUpdate = async (goalId: string, progress: number) => {
+    try {
+      setIsUpdating(true);
+      await onGoalUpdate(goalId, { progress });
+      toast({
+        title: 'Progress Updated',
+        description: 'Goal progress has been successfully updated.',
+      });
+    } catch (error) {
+      console.error('Failed to update progress:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update goal progress. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
-  const handleAddGoal = () => {
-    const newGoal: WhisperGoal = {
-      id: Date.now().toString(),
-      title: '',
-      prompt: '',
-      successCriteria: [],
-      progress: 0,
-      category: '',
-      priority: 'low',
-      feedback: [],
-      lastUpdated: new Date()
-    };
-    setEditingGoal(newGoal);
-    setIsEditing(true);
-  };
-
-  const handleSaveGoal = () => {
-    if (editingGoal) {
-      if (editingGoal.id === 'new') {
-        setGoals([...goals, { ...editingGoal, id: Date.now().toString() }]);
-      } else {
-        setGoals(goals.map(goal => 
-          goal.id === editingGoal.id ? editingGoal : goal
-        ));
+  const handleAddFeedback = async (goalId: string) => {
+    if (!newFeedback.trim()) return;
+    
+    try {
+      setIsUpdating(true);
+      const goal = contact.goals.find(g => g.goalId === goalId);
+      if (goal) {
+        const updatedFeedback = [...goal.feedback, newFeedback.trim()];
+        await onGoalUpdate(goalId, { feedback: updatedFeedback });
+        setNewFeedback('');
+        setShowFeedback(null);
+        toast({
+          title: 'Feedback Added',
+          description: 'Your feedback has been successfully added to the goal.',
+        });
       }
-      setIsEditing(false);
-      setEditingGoal(null);
+    } catch (error) {
+      console.error('Failed to add feedback:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add feedback. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
-  const handleDeleteGoal = (goalId: string) => {
-    if (window.confirm('Are you sure you want to delete this goal?')) {
-      setGoals(goals.filter(goal => goal.id !== goalId));
-      if (selectedGoals.includes(goalId)) {
-        onGoalsChange(selectedGoals.filter(id => id !== goalId));
-      }
+  const handleAddGoal = async () => {
+    if (!newGoal.title) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a title for the goal.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      await onGoalAdd({
+        ...newGoal,
+        contacts: [{ contactId: contact.id }],
+      });
+      setNewGoal({
+        title: '',
+        description: '',
+        type: 'PERSONAL',
+        priority: 1,
+        successCriteria: [],
+        category: '',
+        feedback: [],
+        contacts: [],
+      });
+      setShowAddGoal(false);
+      toast({
+        title: 'Goal Added',
+        description: 'New goal has been successfully created.',
+      });
+    } catch (error) {
+      console.error('Failed to add goal:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create goal. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
-  const handleProgressUpdate = (goalId: string, progress: number) => {
-    setGoals(goals.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, progress, lastUpdated: new Date() } 
-        : goal
-    ));
-    onProgressUpdate?.(goalId, progress);
+  const handleAddSuccessCriteria = () => {
+    if (!newSuccessCriteria.trim()) return;
+    setNewGoal(prev => ({
+      ...prev,
+      successCriteria: [...(prev.successCriteria || []), newSuccessCriteria.trim()],
+    }));
+    setNewSuccessCriteria('');
   };
 
-  const handleAddFeedback = (goalId: string, feedback: string) => {
-    setGoals(goals.map(goal => 
-      goal.id === goalId 
-        ? { 
-            ...goal, 
-            feedback: [...goal.feedback, feedback],
-            lastUpdated: new Date()
-          } 
-        : goal
-    ));
-    onFeedbackAdd?.(goalId, feedback);
+  const handleRemoveSuccessCriteria = (index: number) => {
+    setNewGoal(prev => ({
+      ...prev,
+      successCriteria: prev.successCriteria?.filter((_, i) => i !== index) || [],
+    }));
   };
-
-  const getPriorityColor = (priority: 'low' | 'medium' | 'high') => {
-    switch (priority) {
-      case 'high': return 'text-red-400';
-      case 'medium': return 'text-yellow-400';
-      case 'low': return 'text-green-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const filteredGoals = goals.filter(goal =>
-    goal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    goal.prompt.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <Card className="bg-gray-800 border-gray-700">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-white">Call Goals</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleAddGoal}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Goal
-        </Button>
+      <CardHeader>
+        <CardTitle className="text-white flex justify-between items-center">
+          <span>Goals</span>
+          <Button
+            size="sm"
+            className="bg-teal-600 hover:bg-teal-700"
+            onClick={() => setShowAddGoal(true)}
+            disabled={isUpdating}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Goal
+          </Button>
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mb-4">
-          <Input
-            className="bg-gray-700 text-white"
-            placeholder="Search goals..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-4">
-            {filteredGoals.map((goal) => (
-              <Card 
-                key={goal.id} 
-                className={`bg-gray-700 hover:bg-gray-600 transition-colors ${
-                  selectedGoals.includes(goal.id) ? 'border-teal-500' : ''
-                }`}
+        <ScrollArea className="h-[400px] pr-4">
+          {contact.goals.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">
+              No goals set for this contact yet
+            </div>
+          ) : (
+            contact.goals.map((contactGoal) => (
+              <div
+                key={contactGoal.id}
+                className="mb-4 p-4 rounded-lg bg-gray-700 border border-gray-600"
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <Checkbox
-                      checked={selectedGoals.includes(goal.id)}
-                      onCheckedChange={() => handleGoalSelect(goal.id)}
-                    />
-                    <div className="flex-grow">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-semibold text-white">{goal.title}</h3>
-                        <Badge variant="outline" className={getPriorityColor(goal.priority)}>
-                          {goal.priority}
-                        </Badge>
-                      </div>
-                      <p className="text-gray-300 mb-2">{goal.prompt}</p>
-                      <Badge className="mb-3 bg-gray-600">{goal.category}</Badge>
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-400">Success Criteria:</h4>
-                        <ul className="list-disc list-inside text-sm text-gray-300">
-                          {goal.successCriteria.map((criterion, index) => (
-                            <li key={index}>{criterion}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="mt-4">
-                        <Label className="text-sm text-gray-400">Progress</Label>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-grow bg-gray-600 rounded-full h-2">
-                            <div 
-                              className="bg-teal-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${goal.progress}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-300">{goal.progress}%</span>
-                        </div>
-                      </div>
-                      {goal.feedback.length > 0 && (
-                        <div className="mt-4">
-                          <Label className="text-sm text-gray-400">Recent Feedback</Label>
-                          <ScrollArea className="h-20 mt-1">
-                            {goal.feedback.map((item, index) => (
-                              <p key={index} className="text-sm text-gray-300 py-1">{item}</p>
-                            ))}
-                          </ScrollArea>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col space-y-2">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => {
-                          setEditingGoal(goal);
-                          setIsEditing(true);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleDeleteGoal(goal.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleProgressUpdate(goal.id, Math.min(100, goal.progress + 10))}
-                      >
-                        <Target className="w-4 h-4 text-teal-400" />
-                      </Button>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{contactGoal.goal.title}</h3>
+                    <p className="text-gray-400 text-sm">{contactGoal.goal.description}</p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Badge variant={contactGoal.goal.type === 'PERSONAL' ? 'default' : 'secondary'}>
+                      {contactGoal.goal.type}
+                    </Badge>
+                    {contactGoal.goal.category && (
+                      <Badge variant="outline">{contactGoal.goal.category}</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm text-gray-400">Progress</Label>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={contactGoal.progress} className="flex-1" />
+                      <span className="text-sm text-gray-400">{contactGoal.progress}%</span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ScrollArea>
 
-        {isEditing && editingGoal && (
-          <Dialog open={isEditing} onOpenChange={() => setIsEditing(false)}>
-            <DialogContent className="bg-gray-800 border-gray-700 text-white">
-              <DialogHeader>
-                <DialogTitle>{editingGoal.id === 'new' ? 'Create New Goal' : 'Edit Goal'}</DialogTitle>
-                <DialogDescription className="text-gray-400">
-                  Configure your communication goal and success criteria
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Goal Title</Label>
-                  <Input
-                    value={editingGoal.title}
-                    onChange={(e) => setEditingGoal({
-                      ...editingGoal,
-                      title: e.target.value
-                    })}
-                    className="bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <Label>Category</Label>
-                  <Input
-                    value={editingGoal.category}
-                    onChange={(e) => setEditingGoal({
-                      ...editingGoal,
-                      category: e.target.value
-                    })}
-                    className="bg-gray-700"
-                    placeholder="e.g., Communication, Leadership, Technical"
-                  />
-                </div>
-                <div>
-                  <Label>Priority</Label>
-                  <select
-                    value={editingGoal.priority}
-                    onChange={(e) => setEditingGoal({
-                      ...editingGoal,
-                      priority: e.target.value as 'low' | 'medium' | 'high'
-                    })}
-                    className="w-full bg-gray-700 text-white rounded-md border border-gray-600 p-2"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>Instructions for AI (Prompt)</Label>
-                  <Textarea
-                    value={editingGoal.prompt}
-                    onChange={(e) => setEditingGoal({
-                      ...editingGoal,
-                      prompt: e.target.value
-                    })}
-                    className="bg-gray-700 h-32"
-                    placeholder="Describe how the AI should help you achieve this goal..."
-                  />
-                </div>
-                <div>
-                  <Label>Success Criteria (one per line)</Label>
-                  <Textarea
-                    value={editingGoal.successCriteria.join('\n')}
-                    onChange={(e) => setEditingGoal({
-                      ...editingGoal,
-                      successCriteria: e.target.value.split('\n').filter(Boolean)
-                    })}
-                    className="bg-gray-700 h-32"
-                    placeholder="Enter criteria for measuring success..."
-                  />
+                  {contactGoal.goal.successCriteria.length > 0 && (
+                    <div>
+                      <Label className="text-sm text-gray-400">Success Criteria</Label>
+                      <ul className="list-disc list-inside text-sm text-gray-300">
+                        {contactGoal.goal.successCriteria.map((criteria, index) => (
+                          <li key={index}>{criteria}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowFeedback(contactGoal.id)}
+                      disabled={isUpdating}
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Feedback ({contactGoal.feedback.length})
+                    </Button>
+                    <Select
+                      value={contactGoal.status}
+                      onValueChange={async (value) => {
+                        try {
+                          setIsUpdating(true);
+                          await onGoalUpdate(contactGoal.goalId, { status: value as any });
+                          toast({
+                            title: 'Status Updated',
+                            description: 'Goal status has been successfully updated.',
+                          });
+                        } catch (error) {
+                          console.error('Failed to update status:', error);
+                          toast({
+                            title: 'Error',
+                            description: 'Failed to update goal status. Please try again.',
+                            variant: 'destructive',
+                          });
+                        } finally {
+                          setIsUpdating(false);
+                        }
+                      }}
+                      disabled={isUpdating}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NOT_STARTED">Not Started</SelectItem>
+                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveGoal}>
-                  Save Goal
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+            ))
+          )}
+        </ScrollArea>
       </CardContent>
+
+      <Dialog open={showAddGoal} onOpenChange={setShowAddGoal}>
+        <DialogContent className="bg-gray-800 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Add New Goal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={newGoal.title}
+                onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={newGoal.description}
+                onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <Label htmlFor="type">Type</Label>
+              <Select
+                value={newGoal.type}
+                onValueChange={(value) => setNewGoal({ ...newGoal, type: value as any })}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PERSONAL">Personal</SelectItem>
+                  <SelectItem value="BUSINESS">Business</SelectItem>
+                  <SelectItem value="BOTH">Both</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="category">Category</Label>
+              <Input
+                id="category"
+                value={newGoal.category}
+                onChange={(e) => setNewGoal({ ...newGoal, category: e.target.value })}
+                className="bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <Label>Success Criteria</Label>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                  <Input
+                    value={newSuccessCriteria}
+                    onChange={(e) => setNewSuccessCriteria(e.target.value)}
+                    placeholder="Add success criteria"
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
+                  <Button
+                    onClick={handleAddSuccessCriteria}
+                    disabled={!newSuccessCriteria.trim()}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {newGoal.successCriteria && newGoal.successCriteria.length > 0 && (
+                  <ul className="list-disc list-inside text-sm text-gray-300">
+                    {newGoal.successCriteria.map((criteria, index) => (
+                      <li key={index} className="flex items-center justify-between">
+                        <span>{criteria}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveSuccessCriteria(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowAddGoal(false)}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddGoal}
+              disabled={isUpdating || !newGoal.title.trim()}
+            >
+              Add Goal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!showFeedback} onOpenChange={() => setShowFeedback(null)}>
+        <DialogContent className="bg-gray-800 border-gray-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Goal Feedback</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {showFeedback && (
+              <>
+                <ScrollArea className="h-[200px]">
+                  {contact.goals
+                    .find((g) => g.id === showFeedback)
+                    ?.feedback.map((feedback, index) => (
+                      <div
+                        key={index}
+                        className="p-2 mb-2 rounded bg-gray-700 text-gray-300"
+                      >
+                        {feedback}
+                      </div>
+                    ))}
+                </ScrollArea>
+                <div>
+                  <Label htmlFor="newFeedback">Add Feedback</Label>
+                  <Textarea
+                    id="newFeedback"
+                    value={newFeedback}
+                    onChange={(e) => setNewFeedback(e.target.value)}
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowFeedback(null)}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => showFeedback && handleAddFeedback(showFeedback)}
+              disabled={isUpdating || !newFeedback.trim()}
+            >
+              Add Feedback
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

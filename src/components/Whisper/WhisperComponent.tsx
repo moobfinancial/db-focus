@@ -3,7 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CallInterface } from './components/CallInterface';
 import { WhisperGoals } from './components/WhisperGoals';
-import { ContactSelector } from './components/ContactSelector';
+import { ContactSelector } from './ContactSelector';
 import { useWhisperState } from './hooks/useWhisperState';
 
 export default function WhisperComponent() {
@@ -15,6 +15,8 @@ export default function WhisperComponent() {
     handleSelectContact,
     handleSendMessage,
     handleVoiceInput,
+    handleGoalUpdate,
+    handleGoalAdd,
   } = useWhisperState();
 
   return (
@@ -39,6 +41,8 @@ export default function WhisperComponent() {
                     contacts={state.contacts}
                     selectedContact={state.selectedContact}
                     onSelectContact={handleSelectContact}
+                    showAddContactModal={state.showContactDialog}
+                    setShowAddContactModal={(show) => set('showContactDialog', show)}
                   />
                 </div>
               )}
@@ -51,8 +55,8 @@ export default function WhisperComponent() {
                     onEndCall={handleEndCall}
                     onSendMessage={handleSendMessage}
                     onVoiceInput={handleVoiceInput}
-                    onVolumeChange={(value) => set('volume', value)}
-                    onMessageChange={(value) => set('userMessage', value)}
+                    onMicMute={(muted) => set('micMuted', muted)}
+                    onVolumeChange={(volume) => set('volume', volume)}
                   />
                 </Card>
               </div>
@@ -60,7 +64,19 @@ export default function WhisperComponent() {
           </TabsContent>
 
           <TabsContent value="goals">
-            <WhisperGoals />
+            {state.selectedContact ? (
+              <WhisperGoals
+                contact={state.selectedContact}
+                onGoalUpdate={handleGoalUpdate}
+                onGoalAdd={handleGoalAdd}
+              />
+            ) : (
+              <Card className="p-6 bg-gray-800 border-gray-700">
+                <p className="text-center text-gray-400">
+                  Please select a contact to manage their goals
+                </p>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
