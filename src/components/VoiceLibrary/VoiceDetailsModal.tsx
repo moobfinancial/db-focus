@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play } from "lucide-react";
@@ -21,22 +21,27 @@ export function VoiceDetailsModal({ voice, isOpen, onClose, providers }: VoiceDe
           <DialogTitle className="text-2xl font-semibold text-white">
             Voice Details: {voice.name}
           </DialogTitle>
+          <DialogDescription className="text-gray-400">
+            View detailed information about this voice and listen to a sample.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
           <div>
             <h4 className="font-semibold text-white mb-2">Characteristics</h4>
-            <p className="text-gray-300">Gender: {voice.gender}</p>
-            <p className="text-gray-300">Nationality: {voice.nationality}</p>
-            <p className="text-gray-300">Language: {voice.language}</p>
-            <p className="text-gray-300">
-              Provider: {voice.provider}
-              <Badge 
-                variant={providers.find(p => p.name === voice.provider)?.status === "Included" ? "secondary" : "destructive"}
-                className="ml-2"
-              >
-                {providers.find(p => p.name === voice.provider)?.status || "Custom"}
-              </Badge>
-            </p>
+            <div className="space-y-2 text-gray-300">
+              <div>Gender: {voice.gender}</div>
+              <div>Nationality: {voice.nationality}</div>
+              <div>Language: {voice.language}</div>
+              <div className="flex items-center">
+                <span>Provider: {voice.provider}</span>
+                <Badge 
+                  variant={providers.find(p => p.name === voice.provider)?.status === "Included" ? "secondary" : "destructive"}
+                  className="ml-2"
+                >
+                  {providers.find(p => p.name === voice.provider)?.status || "Custom"}
+                </Badge>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2 mt-2">
               {voice.traits.map((trait) => (
                 <span key={trait} className="px-2 py-0.5 bg-gray-700 text-gray-200 rounded-full text-xs">

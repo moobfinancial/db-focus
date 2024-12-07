@@ -11,21 +11,29 @@ export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const formData = new FormData(e.currentTarget);
-      await login({
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-      });
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
+
+      if (!email || !password) {
+        throw new Error('Please enter both email and password');
+      }
+
+      await login({ email, password });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid email or password';
+      setError(message);
       toast({
         title: "Error",
-        description: "Invalid email or password",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -44,7 +52,7 @@ export default function Login() {
         </h2>
         <p className="mt-2 text-center text-sm text-gray-400">
           Don't have an account?{' '}
-          <Link to="/signup" className="font-medium text-teal-400 hover:text-teal-300">
+          <Link to="/auth/signup" className="font-medium text-teal-400 hover:text-teal-300">
             Sign up
           </Link>
         </p>
@@ -52,79 +60,65 @@ export default function Login() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+              <div className="text-red-400 text-sm mb-4">
+                {error}
+              </div>
+            )}
+            
             <div>
-              <Label htmlFor="email">Email address</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="mt-1 bg-gray-700 border-gray-600 text-white"
-              />
+              <Label htmlFor="email" className="text-white">
+                Email address
+              </Label>
+              <div className="mt-1">
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="bg-gray-700 text-white"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="mt-1 bg-gray-700 border-gray-600 text-white"
-              />
+              <Label htmlFor="password" className="text-white">
+                Password
+              </Label>
+              <div className="mt-1">
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  className="bg-gray-700 text-white"
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-400 focus:ring-teal-500"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">
-                  Remember me
-                </label>
-              </div>
-
               <div className="text-sm">
-                <a href="#" className="font-medium text-teal-400 hover:text-teal-300">
+                <Link to="/auth/forgot-password" className="font-medium text-teal-400 hover:text-teal-300">
                   Forgot your password?
-                </a>
+                </Link>
               </div>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full bg-teal-500 hover:bg-teal-600"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </Button>
+            <div>
+              <Button
+                type="submit"
+                className="w-full bg-teal-500 hover:bg-teal-600"
+                disabled={loading}
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </Button>
+            </div>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-700" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-gray-800 px-2 text-gray-400">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button variant="outline" className="w-full border-gray-700 text-white hover:bg-gray-700">
-                Google
-              </Button>
-              <Button variant="outline" className="w-full border-gray-700 text-white hover:bg-gray-700">
-                GitHub
-              </Button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

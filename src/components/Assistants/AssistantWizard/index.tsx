@@ -7,14 +7,22 @@ import ReviewCreate from './ReviewCreate';
 import WizardProgress from './WizardProgress';
 
 interface Assistant {
-  name: string;
   id: string;
-  modes: string[];
-  firstMessage: string;
-  systemPrompt: string;
-  provider: string;
-  model: string;
-  tools: string[];
+  name: string;
+  modes?: string[];
+  firstMessage?: string;
+  systemPrompt?: string;
+  provider?: string;
+  model?: string;
+  tools?: string[];
+  voiceProvider?: string;
+  voiceId?: string;
+  voiceSettings?: {
+    speed?: number;
+    pitch?: number;
+    stability?: number;
+    volume?: number;
+  };
 }
 
 interface AssistantWizardProps {
@@ -36,7 +44,15 @@ export default function AssistantWizard({ onClose, onComplete }: AssistantWizard
     firstMessage: '',
     systemPrompt: '',
     tools: [],
-    template: null
+    template: null,
+    voiceProvider: 'Cartesia',
+    voiceId: 'professional_male',
+    voiceSettings: {
+      speed: 1,
+      pitch: 1,
+      stability: 0.75,
+      volume: 0.75
+    }
   });
 
   const handleTemplateSelect = (template: any) => {
@@ -64,11 +80,31 @@ export default function AssistantWizard({ onClose, onComplete }: AssistantWizard
   const handleCreate = () => {
     const assistant: Assistant = {
       id: Math.random().toString(36).substr(2, 9),
+      name: formData.name || 'Unnamed Assistant',
       modes: ['Web', 'Voice'],
-      provider: 'groq',
-      model: 'llama3-70b-8192',
-      ...formData
+      firstMessage: formData.firstMessage || '',
+      systemPrompt: formData.systemPrompt || '',
+      provider: 'dailybots',  
+      model: 'dailybots-default',  
+      tools: formData.tools || [],
+      voiceProvider: formData.voiceProvider || 'Cartesia',
+      voiceId: formData.voiceId || 'professional_male',
+      voiceSettings: {
+        speed: formData.voiceSettings?.speed || 1,
+        pitch: formData.voiceSettings?.pitch || 1,
+        stability: formData.voiceSettings?.stability || 0.75,
+        volume: formData.voiceSettings?.volume || 0.75
+      }
     };
+
+    console.log('Wizard Creating Assistant:', assistant);
+
+    // Defensive check before creating
+    if (!assistant.name || !assistant.id) {
+      console.error('Cannot create assistant: Missing critical details', assistant);
+      return;
+    }
+
     onComplete(assistant);
   };
 

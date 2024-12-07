@@ -1,26 +1,37 @@
-import { Router } from 'express';
-import { prisma } from '@/lib/prisma';
-import { validateCampaign } from '@/lib/validation';
-import type { Campaign } from '@/types/schema';
-import type { ApiResponse, PaginatedResponse } from '@/types/schema';
+import { Router, Request, Response } from 'express';
+import { PrismaClient, Prisma, Campaign, CampaignStatus } from '@prisma/client';
+import type { ApiResponse, PaginatedResponse } from '../../../server/src/types/schema';
+
+const prisma = new PrismaClient();
+
+interface RequestWithUser extends Request {
+  user: {
+    id: string;
+  };
+}
 
 const router = Router();
 
 // Get paginated campaigns
-router.get('/', async (req, res) => {
+router.get('/', async (req: RequestWithUser, res: Response) => {
   try {
     const { page = 1, pageSize = 10, search, status } = req.query;
     const skip = (Number(page) - 1) * Number(pageSize);
 
-    const where = {
+    const where: Prisma.CampaignWhereInput = {
       userId: req.user.id,
       ...(search && {
         OR: [
-          { name: { contains: String(search), mode: 'insensitive' } },
-          { description: { contains: String(search), mode: 'insensitive' } },
+          { name: { contains: String(search), mode: Prisma.QueryMode.insensitive } },
+          { description: { contains: String(search), mode: Prisma.QueryMode.insensitive } },
         ],
       }),
-      ...(status && { status: String(status) }),
+      ...(status && { status: status as CampaignStatus }),
+    };
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
     };
 
     const [campaigns, total] = await Promise.all([
@@ -29,9 +40,7 @@ router.get('/', async (req, res) => {
         skip,
         take: Number(pageSize),
         orderBy: { createdAt: 'desc' },
-        include: {
-          contacts: true,
-        },
+        include,
       }),
       prisma.campaign.count({ where }),
     ]);
@@ -61,16 +70,19 @@ router.get('/', async (req, res) => {
 });
 
 // Get campaign by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: RequestWithUser, res: Response) => {
   try {
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
+
     const campaign = await prisma.campaign.findUnique({
       where: {
         id: req.params.id,
         userId: req.user.id,
       },
-      include: {
-        contacts: true,
-      },
+      include,
     });
 
     if (!campaign) {
@@ -100,28 +112,57 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new campaign
-router.post('/', async (req, res) => {
+router.post('/', async (req: RequestWithUser, res: Response) => {
   try {
-    const validation = validateCampaign(req.body);
-    if (!validation.success) {
+    const { name, description, startDate, endDate, status, assistantId, contacts, goals, metrics } = req.body;
+
+    // Validate required fields
+    if (!name || !startDate || !status || !assistantId) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Invalid campaign data',
-          details: validation.errors,
+          message: 'Missing required fields',
+          details: {
+            name: !name ? 'Name is required' : null,
+            startDate: !startDate ? 'Start date is required' : null,
+            status: !status ? 'Status is required' : null,
+            assistantId: !assistantId ? 'Assistant is required' : null,
+          },
         },
       });
     }
 
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
+
     const campaign = await prisma.campaign.create({
       data: {
-        ...req.body,
+        name,
+        description,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        status: status as CampaignStatus,
         userId: req.user.id,
+        metrics: metrics || {
+          totalCalls: 0,
+          successfulCalls: 0,
+          failedCalls: 0,
+          averageDuration: 0,
+        },
+        goals: goals || [],
+        assistant: {
+          connect: { id: assistantId },
+        },
+        ...(contacts?.length && {
+          contacts: {
+            connect: contacts.map((id: string) => ({ id })),
+          },
+        }),
       },
-      include: {
-        contacts: true,
-      },
+      include,
     });
 
     res.status(201).json({
@@ -141,29 +182,43 @@ router.post('/', async (req, res) => {
 });
 
 // Update campaign
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: RequestWithUser, res: Response) => {
   try {
-    const validation = validateCampaign(req.body);
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid campaign data',
-          details: validation.errors,
-        },
-      });
-    }
+    const { name, description, startDate, endDate, status, assistantId, contacts, goals, metrics } = req.body;
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
 
     const campaign = await prisma.campaign.update({
       where: {
         id: req.params.id,
         userId: req.user.id,
       },
-      data: req.body,
-      include: {
-        contacts: true,
+      data: {
+        name,
+        description,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        status: status as CampaignStatus,
+        metrics: metrics || {
+          totalCalls: 0,
+          successfulCalls: 0,
+          failedCalls: 0,
+          averageDuration: 0,
+        },
+        goals: goals || [],
+        assistant: {
+          connect: { id: assistantId },
+        },
+        ...(contacts && {
+          contacts: {
+            set: contacts.map((id: string) => ({ id })),
+          },
+        }),
       },
+      include,
     });
 
     res.json({
@@ -182,8 +237,88 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// Update campaign status
+router.patch('/:id/status', async (req: RequestWithUser, res: Response) => {
+  try {
+    const { status } = req.body;
+
+    if (!['DRAFT', 'SCHEDULED', 'ACTIVE', 'COMPLETED', 'CANCELLED'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid status',
+        },
+      });
+    }
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
+
+    const campaign = await prisma.campaign.update({
+      where: {
+        id: req.params.id,
+        userId: req.user.id,
+      },
+      data: { status: status as CampaignStatus },
+      include,
+    });
+
+    res.json({
+      success: true,
+      data: campaign,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update campaign status',
+        details: error,
+      },
+    });
+  }
+});
+
+// Update campaign metrics
+router.patch('/:id/metrics', async (req: RequestWithUser, res: Response) => {
+  try {
+    const { metrics } = req.body;
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
+
+    const campaign = await prisma.campaign.update({
+      where: {
+        id: req.params.id,
+        userId: req.user.id,
+      },
+      data: { metrics },
+      include,
+    });
+
+    res.json({
+      success: true,
+      data: campaign,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Failed to update campaign metrics',
+        details: error,
+      },
+    });
+  }
+});
+
 // Delete campaign
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: RequestWithUser, res: Response) => {
   try {
     await prisma.campaign.delete({
       where: {
@@ -209,9 +344,14 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Add contacts to campaign
-router.post('/:id/contacts', async (req, res) => {
+router.post('/:id/contacts', async (req: RequestWithUser, res: Response) => {
   try {
     const { contactIds } = req.body;
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
 
     const campaign = await prisma.campaign.update({
       where: {
@@ -223,9 +363,7 @@ router.post('/:id/contacts', async (req, res) => {
           connect: contactIds.map((id: string) => ({ id })),
         },
       },
-      include: {
-        contacts: true,
-      },
+      include,
     });
 
     res.json({
@@ -245,9 +383,14 @@ router.post('/:id/contacts', async (req, res) => {
 });
 
 // Remove contacts from campaign
-router.delete('/:id/contacts', async (req, res) => {
+router.delete('/:id/contacts', async (req: RequestWithUser, res: Response) => {
   try {
     const { contactIds } = req.body;
+
+    const include: Prisma.CampaignInclude = {
+      contacts: true,
+      assistant: true,
+    };
 
     const campaign = await prisma.campaign.update({
       where: {
@@ -259,9 +402,7 @@ router.delete('/:id/contacts', async (req, res) => {
           disconnect: contactIds.map((id: string) => ({ id })),
         },
       },
-      include: {
-        contacts: true,
-      },
+      include,
     });
 
     res.json({

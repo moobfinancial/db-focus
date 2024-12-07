@@ -10,7 +10,7 @@ const timestampFields = {
 export const userSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
-  company: z.string().optional(),
+  // company: z.string().optional(),
   role: z.enum(['ADMIN', 'USER']).default('USER'),
   phoneNumber: z.string().optional(),
   settings: z.object({

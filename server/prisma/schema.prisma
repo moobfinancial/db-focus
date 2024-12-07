@@ -1,0 +1,233 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum LLMProvider {
+  OPEN_AI      
+  ANTHROPIC    
+  OPEN_ROUTER  
+  DAILY_BOTS   
+  OPENAI
+  GROK
+  GEMINI
+  TOGETHER
+}
+
+enum VoiceProvider {
+  ELEVEN_LABS  
+  DEEP_GRAM    
+  DEEPGRAM
+  CARTESIA
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum CallStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum VoiceSessionStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+  FAILED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  password      String
+  name          String?
+  company       String?
+  phoneNumber   String?
+  role          UserRole      @default(USER)
+  settings      Json?
+  dailyApiKey   String?
+  openaiApiKey  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  assistants    Assistant[]
+  contacts      Contact[]
+  goals         Goal[]
+  calls         Call[]
+  campaigns     Campaign[]
+  templates     Template[]
+  whisperGoals  WhisperGoal[]
+  voiceSessions VoiceSession[]
+}
+
+model Assistant {
+  id            String        @id @default(cuid())
+  name          String
+  systemPrompt  String       @db.Text
+  firstMessage  String?
+  provider      LLMProvider  @default(OPEN_AI)
+  model         String       @default("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")
+  voiceProvider VoiceProvider @default(ELEVEN_LABS)
+  voiceId       String
+  voiceSettings Json?        // For storing TTS settings
+  language      String       @default("en")
+  config        Json?        // For storing additional RTVI config
+  userId        String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  tools         String[]     @default([])
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls         Call[]
+  voiceSessions VoiceSession[]
+
+  @@index([userId])
+}
+
+model Contact {
+  id        String     @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  userId    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goals       Goal[]
+  contactGoals ContactGoal[]
+  campaigns   Campaign[]   @relation("CampaignContacts")
+
+  @@index([userId])
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("ACTIVE")
+  contactId   String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactGoals ContactGoal[]
+}
+
+model ContactGoal {
+  contactId    String
+  goalId       String
+  progress     Int       @default(0)
+  status       String    @default("IN_PROGRESS")
+  feedback     String[]  @default([])
+  lastUpdated  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  contact      Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  goal         Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, goalId])
+}
+
+model Call {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  assistantId String
+  assistant   Assistant  @relation(fields: [assistantId], references: [id])
+  sessionId   String     @unique
+  startTime   DateTime
+  endTime     DateTime?
+  status      CallStatus @default(IN_PROGRESS)
+  metrics     Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([assistantId])
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      CampaignStatus @default(DRAFT)
+  startDate   DateTime
+  endDate     DateTime?
+  metrics     Json?
+  userId      String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts    Contact[]      @relation("CampaignContacts")
+
+  @@index([userId])
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  content     String   @db.Text
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WhisperGoal {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("ACTIVE")
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VoiceSession {
+  id                String             @id @default(cuid())
+  assistantId       String
+  userId            String
+  sessionId         String             @unique
+  botSessionId      String?
+  roomUrl           String?
+  status            VoiceSessionStatus @default(ACTIVE)
+  startedAt         DateTime           @default(now())
+  pausedAt          DateTime?
+  endedAt           DateTime?
+  expiresAt         DateTime
+  rtviClientVersion String?
+  services          Json?
+  config            Json?
+  metrics           Json?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant         Assistant          @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([assistantId])
+}

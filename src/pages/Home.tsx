@@ -17,7 +17,7 @@ export default function Home() {
             <Link to="/" className="text-gray-600 hover:text-gray-900">Home</Link>
             <a href="#pricing" className="text-gray-600 hover:text-gray-900">Pricing</a>
             <a href="#faqs" className="text-gray-600 hover:text-gray-900">FAQs</a>
-            <Link to="/login">
+            <Link to="/auth/login">
               <Button variant="outline" className="border-teal-500 text-teal-500 hover:bg-teal-50">
                 Login
               </Button>
@@ -39,12 +39,12 @@ export default function Home() {
               Seamlessly integrate with your systems for greater customer satisfaction and enhanced business success.
             </p>
             <div className="flex space-x-4">
-              <Link to="/signup">
+              <Link to="/auth/signup">
                 <Button className="bg-gray-900 hover:bg-gray-800 text-white px-8">
                   Free Trial
                 </Button>
               </Link>
-              <Link to="/signup">
+              <Link to="/auth/signup">
                 <Button variant="outline" className="border-gray-900 text-gray-900 hover:bg-gray-50 px-8">
                   Get Started
                 </Button>
@@ -117,7 +117,7 @@ export default function Home() {
           <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
             Join thousands of businesses already using Talkai247 to enhance their customer interactions
           </p>
-          <Link to="/signup">
+          <Link to="/auth/signup">
             <Button className="bg-teal-500 hover:bg-teal-600 text-white px-8 py-3">
               Get Started Now
             </Button>

@@ -1,10 +1,13 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/lib/auth/AuthContext';
 import { Toaster } from '@/components/ui/toaster';
 import PrivateRoute from '@/components/PrivateRoute';
-import Sidebar from '@/components/Sidebar';
+import DashboardLayout from '@/components/DashboardLayout';
 import Login from '@/pages/auth/Login';
 import Signup from '@/pages/auth/Signup';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import ResetPassword from '@/pages/auth/ResetPassword';
+import NotFound from '@/pages/NotFound';
 import Home from '@/pages/Home';
 import Dashboard from '@/pages/Dashboard';
 import Assistants from '@/pages/Assistants';
@@ -23,17 +26,6 @@ import Resources from '@/pages/Resources';
 import Help from '@/pages/Help';
 import Logout from '@/pages/Logout';
 
-function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen bg-gray-900">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <Router>
@@ -41,125 +33,41 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          
+          {/* Auth routes */}
+          <Route path="/auth">
+            <Route path="login" element={<Login />} />
+            <Route path="signup" element={<Signup />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
+          </Route>
 
           {/* Protected dashboard routes */}
           <Route path="/dashboard" element={
             <PrivateRoute>
-              <DashboardLayout>
-                <Dashboard />
-              </DashboardLayout>
+              <DashboardLayout />
             </PrivateRoute>
-          } />
-          <Route path="/dashboard/assistants" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Assistants />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/phone" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <PhoneNumber />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/logs" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <CallLogs />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/sms" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <SMS />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/voice" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <VoiceLibrary />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/contacts" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <ContactList />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/campaigns" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Campaigns />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/goals" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <GoalTemplate />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/transparency" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <TransparencyLevels />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/whisper" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Whisper />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/billing" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Billing />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/account" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Account />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/resources" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Resources />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/help" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Help />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
-          <Route path="/dashboard/logout" element={
-            <PrivateRoute>
-              <DashboardLayout>
-                <Logout />
-              </DashboardLayout>
-            </PrivateRoute>
-          } />
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="assistants" element={<Assistants />} />
+            <Route path="phone" element={<PhoneNumber />} />
+            <Route path="logs" element={<CallLogs />} />
+            <Route path="sms" element={<SMS />} />
+            <Route path="voice" element={<VoiceLibrary />} />
+            <Route path="contacts" element={<ContactList />} />
+            <Route path="campaigns" element={<Campaigns />} />
+            <Route path="goals" element={<GoalTemplate />} />
+            <Route path="transparency" element={<TransparencyLevels />} />
+            <Route path="whisper" element={<Whisper />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="account" element={<Account />} />
+            <Route path="resources" element={<Resources />} />
+            <Route path="help" element={<Help />} />
+            <Route path="logout" element={<Logout />} />
+          </Route>
 
-          {/* Catch all route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* 404 route */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
         <Toaster />
       </AuthProvider>
