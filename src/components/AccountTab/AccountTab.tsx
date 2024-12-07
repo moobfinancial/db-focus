@@ -15,7 +15,7 @@ import { z } from "zod";
 const userSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
-  company: z.string().optional(),
+  // company: z.string().optional(),
   role: z.string(),
   phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number").optional(),
 });
@@ -44,7 +44,7 @@ export default function AccountTab() {
   const [userData, setUserData] = useState({
     name: "",
     email: "",
-    company: "",
+    // company: "",
     role: "",
     phone: "",
   });
@@ -60,7 +60,7 @@ export default function AccountTab() {
       setUserData({
         name: user.name || "",
         email: user.email || "",
-        company: user.company || "",
+        // company: user.company || "",
         role: user.role || "",
         phone: user.phone || "",
       });
@@ -180,7 +180,7 @@ export default function AccountTab() {
                 className="bg-gray-700 text-white border-gray-600"
               />
             </div>
-            <div>
+            {/* <div>
               <Label htmlFor="company" className="text-white">Company</Label>
               <Input
                 id="company"
@@ -189,7 +189,7 @@ export default function AccountTab() {
                 readOnly={!isEditing}
                 className="bg-gray-700 text-white border-gray-600"
               />
-            </div>
+            </div> */}
             <div>
               <Label htmlFor="role" className="text-white">Role</Label>
               <Input
@@ -219,7 +219,7 @@ export default function AccountTab() {
                       setUserData({
                         name: user?.name || "",
                         email: user?.email || "",
-                        company: user?.company || "",
+                        // company: user?.company || "",
                         role: user?.role || "",
                         phone: user?.phone || "",
                       });

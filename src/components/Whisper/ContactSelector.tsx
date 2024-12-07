@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
-import { Contact } from '@/types/contact';
 import { Search } from 'lucide-react';
+import { Contact } from '@/types/contact';
 import { ContactForm } from '@/components/ContactList/ContactForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +15,7 @@ import { useContactContext } from '@/lib/contexts/ContactContext';
 interface ContactSelectorProps {
   contacts: Contact[];
   selectedContact: Contact | null;
-  onSelectContact: (contact: Contact) => void;
+  onSelectContact: (contact: Contact) => Promise<void>;
   showAddContactModal: boolean;
   setShowAddContactModal: (show: boolean) => void;
 }
@@ -26,6 +28,8 @@ export function ContactSelector({
   setShowAddContactModal,
 }: ContactSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { addContact } = useContactContext();
 
   const filteredContacts = contacts.filter(contact =>
@@ -34,15 +38,47 @@ export function ContactSelector({
     contact.phone?.includes(searchQuery)
   );
 
-  const handleAddContact = async (contact: Partial<Contact>) => {
+  const handleContactSelect = async (contact: Contact) => {
     try {
-      const newContact = await addContact(contact);
-      setShowAddContactModal(false);
-      onSelectContact(newContact);
-    } catch (error) {
-      console.error('Failed to add contact:', error);
+      setIsLoading(true);
+      setError(null);
+      await onSelectContact(contact);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to select contact');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const handleAddContact = async (contact: Partial<Contact>) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const newContact = await addContact(contact);
+      setShowAddContactModal(false);
+      await onSelectContact(newContact);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add contact');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (error) {
+    return (
+      <Alert variant="destructive" className="mb-4">
+        <AlertDescription>{error}</AlertDescription>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="mt-2"
+          onClick={() => setError(null)}
+        >
+          Dismiss
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <Card className="p-4 bg-gray-800 border-gray-700">
@@ -53,6 +89,7 @@ export function ContactSelector({
             onClick={() => setShowAddContactModal(true)}
             variant="outline"
             className="text-teal-400 border-teal-400 hover:bg-teal-400/10"
+            disabled={isLoading}
           >
             Add Contact
           </Button>
@@ -69,39 +106,44 @@ export function ContactSelector({
           />
         </div>
 
-        <ScrollArea className="h-[400px]">
-          <div className="space-y-2">
-            {filteredContacts.map((contact) => (
-              <div
-                key={contact.id}
-                className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                  selectedContact?.id === contact.id
-                    ? 'bg-teal-400/20 border-teal-400'
-                    : 'bg-gray-700 hover:bg-gray-600'
-                }`}
-                onClick={() => onSelectContact(contact)}
-              >
-                <div className="font-medium">{contact.name}</div>
-                {contact.phone && (
-                  <div className="text-sm text-gray-400">{contact.phone}</div>
-                )}
-                {contact.email && (
-                  <div className="text-sm text-gray-400">{contact.email}</div>
-                )}
-                {contact.type && (
-                  <Badge variant={contact.type === 'PERSONAL' ? 'default' : 'secondary'} className="mt-2">
-                    {contact.type}
-                  </Badge>
-                )}
-              </div>
-            ))}
-            {filteredContacts.length === 0 && (
-              <div className="text-center text-gray-400 py-4">
-                No contacts found
-              </div>
-            )}
+        {isLoading ? (
+          <div className="flex justify-center items-center h-32">
+            <Spinner className="w-8 h-8" />
           </div>
-        </ScrollArea>
+        ) : filteredContacts.length === 0 ? (
+          <div className="text-center text-gray-400 py-4">
+            No contacts found
+          </div>
+        ) : (
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-2">
+              {filteredContacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                    selectedContact?.id === contact.id
+                      ? 'bg-teal-400/20 border-teal-400'
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                  onClick={() => handleContactSelect(contact)}
+                >
+                  <div className="font-medium">{contact.name}</div>
+                  {contact.phone && (
+                    <div className="text-sm text-gray-400">{contact.phone}</div>
+                  )}
+                  {contact.email && (
+                    <div className="text-sm text-gray-400">{contact.email}</div>
+                  )}
+                  {contact.type && (
+                    <Badge variant={contact.type === 'PERSONAL' ? 'default' : 'secondary'} className="mt-2">
+                      {contact.type}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
       </div>
 
       <Dialog open={showAddContactModal} onOpenChange={setShowAddContactModal}>

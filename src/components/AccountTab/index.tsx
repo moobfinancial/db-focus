@@ -14,7 +14,7 @@ export default function AccountTab() {
   const [user, setUser] = useState({
     name: 'John Doe',
     email: 'john@example.com',
-    company: 'Acme Inc.',
+    // company: 'Acme Inc.',
     role: 'Administrator',
     phoneNumber: '+1 (555) 123-4567',
     publicApiKey: 'pk_live_abcdefghijklmnopqrstuvwxyz123456',

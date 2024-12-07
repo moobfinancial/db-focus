@@ -10,7 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Exclude all .local files except .env.local
 *.local
+!.env.local
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +24,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files
+.env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
+.env.development.local
+.env.test.local
+.env.production.local
