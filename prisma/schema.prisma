@@ -12,6 +12,7 @@ generator client {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
+  password      String    // Add password field
   name          String
   company       String?
   role          UserRole  @default(USER)
@@ -19,10 +20,16 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   settings      Json      // Stores user preferences as JSON
+  dailyApiKey   String?   // Optional Daily API Key
+  openaiApiKey  String?   // Optional OpenAI API Key
   contacts      Contact[]
   goals         Goal[]
   campaigns     Campaign[]
   templates     WhisperTemplate[]
+  assistants    Assistant[]
+  calls         Call[]
+  whisperGoals  WhisperGoal[]
+  contactGoals  ContactGoal[]
 }
 
 enum UserRole {
@@ -70,18 +77,24 @@ enum TransparencyLevel {
 
 // Goal model for reusable templates
 model Goal {
-  id          String        @id @default(cuid())
-  userId      String
-  title       String
-  description String?       @db.Text
-  type        GoalType
-  priority    Int          @default(1)
-  isTemplate  Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String        @id @default(cuid())
+  userId        String
+  title         String
+  description   String?       @db.Text
+  type          GoalType
+  priority      Int          @default(1)
+  isTemplate    Boolean      @default(false)
+  prompt        String?       @db.Text
+  successCriteria String[]   @default([])
+  progress      Int          @default(0)
+  category      String?
+  feedback      String[]     @default([])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contacts    ContactGoal[]
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts      ContactGoal[]
+  whisperGoals  WhisperGoal[]
 
   @@index([userId])
 }
@@ -94,18 +107,22 @@ enum GoalType {
 
 // Junction table for contact-goal relationship
 model ContactGoal {
-  id          String    @id @default(cuid())
-  contactId   String
-  goalId      String
-  status      GoalStatus
-  dueDate     DateTime?
-  progress    Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  userId        String
+  contactId     String
+  goalId        String
+  status        GoalStatus
+  progress      Int         @default(0)
+  feedback      String[]    @default([])
+  dueDate       DateTime?
+  lastUpdated   DateTime    @default(now())
 
-  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
+  @@unique([contactId, goalId])
+  @@index([userId])
   @@index([contactId])
   @@index([goalId])
 }
@@ -125,6 +142,7 @@ model Campaign {
   startDate   DateTime
   endDate     DateTime?
   status      CampaignStatus
+  assistantId String
   contacts    Contact[]
   goals       Json[]    // Array of campaign-specific goals
   metrics     Json      // Campaign performance metrics
@@ -132,8 +150,10 @@ model Campaign {
   updatedAt   DateTime  @updatedAt
 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant   Assistant @relation(fields: [assistantId], references: [id])
 
   @@index([userId])
+  @@index([assistantId])
 }
 
 enum CampaignStatus {
@@ -146,25 +166,29 @@ enum CampaignStatus {
 
 // Call/Conversation tracking
 model Call {
-  id          String    @id @default(cuid())
-  userId      String
-  contactId   String
-  startTime   DateTime
-  endTime     DateTime?
-  duration    Int?      // Duration in seconds
-  status      CallStatus
-  recording   Json?     // Recording metadata
-  transcript  Json[]    // Array of conversation entries
-  goals       Json[]    // Goals discussed during call
-  metrics     Json      // Call performance metrics
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  userId        String
+  assistantId   String
+  sessionId     String?   // DailyBots session ID
+  contactId     String?
+  startTime     DateTime
+  endTime       DateTime?
+  duration      Int?      // Duration in seconds
+  status        CallStatus
+  recording     Json?     // Recording metadata
+  transcript    Json[]    // Array of conversation entries
+  goals         Json[]    // Goals discussed during call
+  metrics       Json      // Call performance metrics
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistant     Assistant @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  contact       Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([assistantId])
   @@index([contactId])
 }
 
@@ -190,6 +214,7 @@ model WhisperTemplate {
   updatedAt     DateTime  @updatedAt
 
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whisperGoals  WhisperGoal[]
 
   @@index([userId])
 }
@@ -197,4 +222,64 @@ model WhisperTemplate {
 enum TemplateType {
   BUSINESS
   PERSONAL
+}
+
+// WhisperGoal model for AI-powered goal management
+model WhisperGoal {
+  id          String    @id @default(cuid())
+  userId      String
+  goalId      String
+  templateId  String
+  status      GoalStatus
+  progress    Int       @default(0)
+  feedback    String[]  @default([])
+  dueDate     DateTime?
+  lastUpdated DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  template    WhisperTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, goalId, templateId])
+  @@index([userId])
+  @@index([goalId])
+  @@index([templateId])
+}
+
+// Assistant model for AI assistants
+model Assistant {
+  id            String    @id @default(cuid())
+  userId        String
+  name          String
+  model         String
+  provider      LLMProvider  @default(OPEN_AI)
+  systemPrompt  String?   @db.Text
+  firstMessage  String?
+  language      String    @default("en")
+  tools         String[]
+  voiceProvider VoiceProvider @default(CARTESIA)
+  voiceId       String?
+  voiceSettings Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls         Call[]
+  campaigns     Campaign[]
+
+  @@index([userId])
+}
+
+enum LLMProvider {
+  OPEN_AI
+  ANTHROPIC
+  GOOGLE
+  CUSTOM
+}
+
+enum VoiceProvider {
+  CARTESIA
+  ELEVEN_LABS
+  CUSTOM
 }

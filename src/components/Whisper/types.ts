@@ -1,57 +1,65 @@
-export interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  type: 'personal' | 'campaign';
-  isShared: boolean;
-  campaignId?: string;
-  campaignName?: string;
-  tags: string[];
-  goals: WhisperGoal[];
-  lastContactedAt?: Date;
-  notes?: string;
-}
+import { Contact as BaseContact } from '@/types/contact';
 
-export interface WhisperGoal {
+export type { Contact } from '@/types/contact';
+
+export interface Goal {
   id: string;
   title: string;
-  description: string;
-  goalType: 'business' | 'personal' | 'both';
-  campaignId?: string;
+  description?: string;
+  type: 'BUSINESS' | 'PERSONAL' | 'BOTH';
+  priority: number;
+  isTemplate: boolean;
+  prompt?: string;
+  successCriteria: string[];
+  progress: number;
+  category?: string;
+  feedback: string[];
+  contacts: ContactGoal[];
+}
+
+export interface ContactGoal {
+  id: string;
+  contactId: string;
+  goalId: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  progress: number;
+  feedback: string[];
+  dueDate?: Date;
+  lastUpdated: Date;
+  contact: BaseContact;
+  goal: Goal;
+}
+
+export interface WhisperGoal extends Omit<ContactGoal, 'contact' | 'goal'> {
+  userId: string;
+  templateId: string;
+}
+
+export interface WhisperTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'BUSINESS' | 'PERSONAL';
+  prompt: string;
+  systemPrompt?: string;
+  tags: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface ContactTag {
-  id: string;
-  contactId: string;
-  campaignId?: string;
-  tagName: string;
-  createdAt: Date;
-}
-
 export interface CallTranscriptEntry {
-  type: 'ai' | 'user';
-  message: string;
+  role: 'user' | 'assistant';
+  content: string;
   timestamp?: string;
 }
 
 export interface WhisperState {
   activeCall: boolean;
-  selectedContact: Contact | null;
-  goals: any[];
-  contacts: Contact[];
+  selectedContact: BaseContact | null;
+  goals: Goal[];
+  contacts: BaseContact[];
   showContactDialog: boolean;
   showWhisperSetupDialog: boolean;
-  newContact: {
-    name: string;
-    phone: string;
-    email: string;
-    type: 'personal' | 'campaign';
-  };
-  contactSearch: string;
-  showContactsSheet: boolean;
   whisperEnabled: boolean;
   micMuted: boolean;
   volume: number;

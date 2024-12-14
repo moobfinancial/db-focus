@@ -12,7 +12,8 @@ interface Template {
 }
 
 interface TemplateSelectionProps {
-  onNext: (template: Template) => void;
+  onSelect: (template: Template) => void;
+  onBack?: () => void;
   onClose: () => void;
 }
 
@@ -55,7 +56,7 @@ const systemTemplates: Template[] = [
   }
 ];
 
-export default function TemplateSelection({ onNext, onClose }: TemplateSelectionProps) {
+export default function TemplateSelection({ onSelect, onBack, onClose }: TemplateSelectionProps) {
   const [selectedCategory, setSelectedCategory] = useState<'blank' | 'personal' | 'business' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
@@ -177,8 +178,8 @@ export default function TemplateSelection({ onNext, onClose }: TemplateSelection
                   </button>
                   
                   <button
-                    className="px-4 py-2 bg-[#14b8a6] text-white rounded hover:bg-[#0d9488] transition-colors"
-                    onClick={() => onNext(template)}
+                    className="px-4 py-2 bg-[#14b8a6] text-white rounded hover:bg-[#0d9488]"
+                    onClick={() => onSelect(template)}
                   >
                     Use Template
                   </button>
@@ -234,7 +235,7 @@ export default function TemplateSelection({ onNext, onClose }: TemplateSelection
               <button
                 className="px-4 py-2 bg-[#14b8a6] text-white rounded hover:bg-[#0d9488]"
                 onClick={() => {
-                  onNext(previewTemplate);
+                  onSelect(previewTemplate);
                   setPreviewTemplate(null);
                 }}
               >
@@ -249,7 +250,7 @@ export default function TemplateSelection({ onNext, onClose }: TemplateSelection
       {selectedCategory === 'blank' && (
         <div className="flex justify-end mt-8">
           <button
-            onClick={() => onNext({
+            onClick={() => onSelect({
               id: 'blank',
               name: 'Blank Template',
               tags: [],

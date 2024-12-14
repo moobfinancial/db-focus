@@ -1,127 +1,87 @@
-import React from 'react';
-import { Input } from "@/components/ui/input";
+import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search } from 'lucide-react';
-
-interface Model {
-  id: string;
-  name: string;
-  description: string;
-  context_length: number;
-  pricing: {
-    prompt: number;
-    completion: number;
-  };
-}
-
-interface Provider {
-  id: string;
-  name: string;
-}
+import { PROVIDERS } from '@/config/providers';
+import { Label } from "@/components/ui/label";
+import { LLMProvider } from '@/types/assistant';
 
 interface ModelSelectorProps {
-  models: Model[];
-  providers: Provider[];
+  selectedProvider: LLMProvider;
   selectedModel: string;
-  selectedProvider: string;
-  searchTerm: string;
-  onSearch: (term: string) => void;
-  onProviderChange: (provider: string) => void;
+  onProviderChange: (provider: LLMProvider) => void;
   onModelChange: (model: string) => void;
 }
 
 export function ModelSelector({
-  models,
-  providers,
-  selectedModel,
   selectedProvider,
-  searchTerm,
-  onSearch,
+  selectedModel,
   onProviderChange,
-  onModelChange,
+  onModelChange
 }: ModelSelectorProps) {
-  const filteredModels = models.filter(model => {
-    const matchesSearch = model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         model.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesProvider = selectedProvider === 'all' || 
-                           model.id.toLowerCase().includes(selectedProvider.toLowerCase());
-    return matchesSearch && matchesProvider;
-  });
+  const [filteredModels, setFilteredModels] = useState<Array<{ id: string; name: string; }>>([]);
+
+  useEffect(() => {
+    const provider = PROVIDERS.find(p => p.id === selectedProvider);
+    if (provider && provider.mockModels) {
+      const models = provider.mockModels.map(model => ({
+        id: model.id,
+        name: model.name
+      }));
+      setFilteredModels(models);
+      
+      // If no model is selected or the current model doesn't belong to this provider,
+      // select the first available model
+      if (!selectedModel || !provider.mockModels.find(m => m.id === selectedModel)) {
+        onModelChange(provider.mockModels[0].id);
+      }
+    }
+  }, [selectedProvider, selectedModel, onModelChange]);
+
+  const currentProvider = PROVIDERS.find(p => p.id === selectedProvider);
+  const currentModel = currentProvider?.mockModels?.find(m => m.id === selectedModel);
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input
-          value={searchTerm}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search models..."
-          className="pl-10 bg-gray-700 text-white border-gray-600"
-        />
+      <div>
+        <Label>LLM Provider</Label>
+        <Select
+          value={selectedProvider}
+          onValueChange={(value) => onProviderChange(value as LLMProvider)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select a provider">
+              {currentProvider?.name || selectedProvider}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {PROVIDERS.map((provider) => (
+              <SelectItem key={provider.id} value={provider.id}>
+                {provider.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Select value={selectedProvider} onValueChange={onProviderChange}>
-            <SelectTrigger className="bg-gray-700 text-white border-gray-600">
-              <SelectValue placeholder="Select provider" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Providers</SelectItem>
-              {providers.map((provider) => (
-                <SelectItem key={provider.id} value={provider.id}>
-                  {provider.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Select value={selectedModel} onValueChange={onModelChange}>
-            <SelectTrigger className="bg-gray-700 text-white border-gray-600">
-              <SelectValue placeholder="Select model" />
-            </SelectTrigger>
-            <SelectContent>
-              <ScrollArea className="h-[200px]">
-                {filteredModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{model.name}</span>
-                      <span className="text-xs text-gray-400">
-                        ${model.pricing.prompt.toFixed(4)}/1K tokens
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </ScrollArea>
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <Label>Model</Label>
+        <Select
+          value={selectedModel}
+          onValueChange={onModelChange}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select a model">
+              {currentModel?.name || selectedModel}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {filteredModels.map((model) => (
+              <SelectItem key={model.id} value={model.id}>
+                {model.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-
-      {selectedModel && (
-        <div className="bg-gray-700 p-4 rounded-lg">
-          <h4 className="text-sm font-medium text-white mb-2">Selected Model Details</h4>
-          {(() => {
-            const model = models.find(m => m.id === selectedModel);
-            if (!model) return null;
-            return (
-              <div className="space-y-2 text-sm">
-                <p className="text-gray-300">{model.description}</p>
-                <div className="flex justify-between text-gray-400">
-                  <span>Context Length: {model.context_length.toLocaleString()} tokens</span>
-                  <span>
-                    Price: ${model.pricing.prompt.toFixed(4)}/1K prompt, 
-                    ${model.pricing.completion.toFixed(4)}/1K completion
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }

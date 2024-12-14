@@ -6,24 +6,12 @@ import VoiceSelection from './VoiceSelection';
 import ConfigureTools from './ConfigureTools';
 import ReviewCreate from './ReviewCreate';
 import WizardProgress from './WizardProgress';
-
-interface Assistant {
-  name: string;
-  id: string;
-  modes: string[];
-  firstMessage: string;
-  systemPrompt: string;
-  provider: string;
-  model: string;
-  tools: string[];
-  voiceProvider?: string;
-  voiceId?: string;
-  volume?: number;
-}
+import { Assistant, LLMProvider, VoiceProvider } from '@/types/assistant';
 
 interface AssistantWizardProps {
   onClose: () => void;
-  onComplete: (assistant: Assistant) => void;
+  onCreate: (assistant: Partial<Assistant>) => Promise<Assistant | null>;
+  isCreating: boolean;
 }
 
 const wizardSteps = [
@@ -34,119 +22,149 @@ const wizardSteps = [
   { number: 5, title: 'Review' }
 ];
 
-export default function AssistantWizard({ onClose, onComplete }: AssistantWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
+const AssistantWizard: React.FC<AssistantWizardProps> = ({
+  onClose,
+  onCreate,
+  isCreating
+}) => {
+  const [step, setStep] = useState(1);
+  const [assistant, setAssistant] = useState<Partial<Assistant>>({
     name: '',
-    firstMessage: '',
-    systemPrompt: '',
+    systemPrompt: 'You are a helpful AI assistant.',
+    firstMessage: 'Hello! How can I help you today?',
+    provider: 'OPEN_AI' as LLMProvider,
+    model: 'gpt-3.5-turbo',
+    language: 'en',
     tools: [],
-    template: null,
-    voiceProvider: '',
+    voiceProvider: 'CARTESIA' as VoiceProvider,
     voiceId: '',
-    volume: 75
+    voiceSettings: {
+      speed: 1,
+      pitch: 1,
+      stability: 0.75,
+      volume: 0.75,
+      sampleRate: 24000
+    }
   });
 
   const handleTemplateSelect = (template: any) => {
-    setFormData({
-      ...formData,
-      name: template.name,
-      firstMessage: template.firstMessage,
-      systemPrompt: template.systemPrompt,
-      tools: template.tools,
-      template
-    });
-    setCurrentStep(2);
+    setAssistant(prev => ({
+      ...prev,
+      ...template
+    }));
+    setStep(2);
   };
 
-  const handleCustomization = (data: any) => {
-    setFormData({ ...formData, ...data });
-    setCurrentStep(3);
+  const handleCustomize = (customData: Partial<Assistant>) => {
+    setAssistant(prev => ({
+      ...prev,
+      ...customData
+    }));
+    setStep(3);
   };
 
-  const handleVoiceSelection = (data: any) => {
-    setFormData({ ...formData, ...data });
-    setCurrentStep(4);
+  const handleVoiceSelect = (voiceData: Partial<Assistant>) => {
+    setAssistant(prev => ({
+      ...prev,
+      ...voiceData
+    }));
+    setStep(4);
   };
 
-  const handleToolsConfig = (tools: any) => {
-    setFormData({ ...formData, tools });
-    setCurrentStep(5);
+  const handleToolsSelect = (toolsData: { id: string; config: any }[]) => {
+    setAssistant(prev => ({
+      ...prev,
+      tools: toolsData.map(t => t.id)
+    }));
+    setStep(5);
   };
 
-  const handleCreate = () => {
-    const assistant: Assistant = {
-      id: Math.random().toString(36).substr(2, 9),
-      modes: ['Web', 'Voice'],
-      provider: 'groq',
-      model: 'llama3-70b-8192',
-      ...formData
-    };
-    onComplete(assistant);
+  const handleCreate = async () => {
+    try {
+      const payload: Partial<Assistant> = {
+        name: assistant.name,
+        systemPrompt: assistant.systemPrompt,
+        firstMessage: assistant.firstMessage,
+        provider: assistant.provider as LLMProvider,
+        model: assistant.model,
+        language: assistant.language || 'en',
+        tools: (assistant.tools || []).filter(tool => 
+          ['Calendar Integration', 'Scraping Tool', 'Send SMS'].includes(tool)
+        ),
+        voiceProvider: assistant.voiceProvider as VoiceProvider,
+        voiceId: assistant.voiceId || 'professional_male',
+        voiceSettings: {
+          speed: 1,
+          pitch: 1,
+          stability: 0.75,
+          volume: 0.75,
+          sampleRate: 24000
+        }
+      };
+
+      console.log('Creating assistant with payload:', payload);
+      const createdAssistant = await onCreate(payload);
+      if (createdAssistant) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error creating assistant:', error);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg w-[800px] max-h-[90vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-700">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold text-teal-400">
-              Create your new Assistant
-            </h2>
-            <button
-              className="text-gray-400 hover:text-white transition-colors"
-              onClick={onClose}
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          
-          <div className="mb-2">
-            <WizardProgress steps={wizardSteps} currentStep={currentStep} />
-          </div>
+      <div className="bg-gray-800 rounded-lg w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex justify-between items-center p-6 border-b border-gray-700">
+          <h2 className="text-xl font-semibold text-white">Create Assistant</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {currentStep === 1 && (
-            <TemplateSelection
-              onNext={handleTemplateSelect}
-              onClose={onClose}
-            />
-          )}
+        <div className="p-6 flex-1 overflow-y-auto">
+          <WizardProgress currentStep={step} steps={wizardSteps} />
 
-          {currentStep === 2 && (
-            <CustomizeAssistant
-              formData={formData}
-              onNext={handleCustomization}
-              onBack={() => setCurrentStep(1)}
-            />
-          )}
-
-          {currentStep === 3 && (
-            <VoiceSelection
-              formData={formData}
-              onNext={handleVoiceSelection}
-              onBack={() => setCurrentStep(2)}
-            />
-          )}
-
-          {currentStep === 4 && (
-            <ConfigureTools
-              formData={formData}
-              onNext={handleToolsConfig}
-              onBack={() => setCurrentStep(3)}
-            />
-          )}
-
-          {currentStep === 5 && (
-            <ReviewCreate
-              formData={formData}
-              onBack={() => setCurrentStep(4)}
-              onSubmit={handleCreate}
-            />
-          )}
+          <div className="mt-8">
+            {step === 1 && (
+              <TemplateSelection onSelect={handleTemplateSelect} onBack={onClose} />
+            )}
+            {step === 2 && (
+              <CustomizeAssistant
+                formData={assistant}
+                onNext={handleCustomize}
+                onBack={() => setStep(1)}
+              />
+            )}
+            {step === 3 && (
+              <VoiceSelection
+                formData={assistant}
+                onNext={handleVoiceSelect}
+                onBack={() => setStep(2)}
+              />
+            )}
+            {step === 4 && (
+              <ConfigureTools
+                formData={assistant}
+                onNext={handleToolsSelect}
+                onBack={() => setStep(3)}
+              />
+            )}
+            {step === 5 && (
+              <ReviewCreate
+                formData={assistant}
+                onBack={() => setStep(4)}
+                onSubmit={handleCreate}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default AssistantWizard;

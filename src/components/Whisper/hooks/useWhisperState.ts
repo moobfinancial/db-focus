@@ -1,147 +1,136 @@
-import { useState, useCallback } from 'react';
-import { useToast } from "@/components/ui/use-toast";
-import type { WhisperState, Contact, CallTranscriptEntry } from '../types';
+import { useState, useCallback, useEffect } from 'react';
+import { Contact, WhisperGoal } from '@/types';
 
-const initialContacts: Contact[] = [
-  { 
-    id: '1', 
-    name: "John Doe", 
-    number: "+1234567890", 
-    email: "john@example.com", 
-    type: "business" 
-  },
-  { 
-    id: '2', 
-    name: "Jane Smith", 
-    number: "+1987654321", 
-    email: "jane@example.com", 
-    type: "personal" 
-  },
-  { 
-    id: '3', 
-    name: "Alice Johnson", 
-    number: "+1122334455", 
-    email: "alice@example.com", 
-    type: "business" 
-  },
-];
+interface WhisperState {
+  contacts: Contact[];
+  selectedContact: Contact | null;
+  showContactDialog: boolean;
+  activeCall: boolean;
+  micMuted: boolean;
+  volume: number;
+  messages: Array<{ text: string; sender: 'user' | 'assistant' }>;
+  goals: WhisperGoal[];
+}
 
 const initialState: WhisperState = {
-  activeCall: false,
+  contacts: [],
   selectedContact: null,
-  goals: [],
-  contacts: initialContacts,
   showContactDialog: false,
-  showWhisperSetupDialog: false,
-  newContact: { name: "", number: "", email: "", type: "personal" },
-  contactSearch: "",
-  showContactsSheet: false,
-  whisperEnabled: false,
+  activeCall: false,
   micMuted: false,
-  volume: 50,
-  callTranscript: [],
-  userMessage: "",
-  isListening: false,
+  volume: 1,
+  messages: [],
+  goals: [],
 };
 
 export function useWhisperState() {
   const [state, setState] = useState<WhisperState>(initialState);
-  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  const set = useCallback((field: keyof WhisperState, value: any) => {
-    setState(prev => ({ ...prev, [field]: value }));
+  const set = useCallback(<K extends keyof WhisperState>(
+    key: K,
+    value: WhisperState[K]
+  ) => {
+    setState((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const handleStartCall = useCallback(() => {
     if (!state.selectedContact) {
-      toast({
-        title: "No Contact Selected",
-        description: "Please select a contact before starting a call.",
-        variant: "destructive"
-      });
+      setError(new Error('Please select a contact before starting a call'));
       return;
     }
     set('activeCall', true);
-    set('callTranscript', [
-      {
-        type: 'ai',
-        message: `Connected to call with ${state.selectedContact.name}. AI assistant is ready to help.`,
-        timestamp: new Date().toISOString()
-      }
-    ]);
-    toast({
-      title: "Call Started",
-      description: `Connected to ${state.selectedContact.name}`,
-    });
-  }, [state.selectedContact, set, toast]);
+  }, [state.selectedContact, set]);
 
   const handleEndCall = useCallback(() => {
     set('activeCall', false);
-    set('callTranscript', []);
-    toast({
-      title: "Call Ended",
-      description: "The call has been terminated.",
-    });
-  }, [set, toast]);
+    set('messages', []);
+  }, [set]);
 
   const handleSelectContact = useCallback((contact: Contact) => {
     set('selectedContact', contact);
-    set('showContactsSheet', false);
-    toast({
-      title: "Contact Selected",
-      description: `Selected ${contact.name} for the call.`,
-    });
-  }, [set, toast]);
-
-  const handleSendMessage = useCallback(() => {
-    if (state.userMessage.trim()) {
-      const newMessage: CallTranscriptEntry = {
-        type: 'user',
-        message: state.userMessage,
-        timestamp: new Date().toISOString()
-      };
-
-      const newTranscript = [...state.callTranscript, newMessage];
-      set('callTranscript', newTranscript);
-      set('userMessage', '');
-      
-      // Simulate AI response
-      setTimeout(() => {
-        const aiResponse: CallTranscriptEntry = {
-          type: 'ai',
-          message: `I understand you said: "${state.userMessage}". Here's my suggestion...`,
-          timestamp: new Date().toISOString()
-        };
-        set('callTranscript', [...newTranscript, aiResponse]);
-      }, 1000);
-    }
-  }, [state.userMessage, state.callTranscript, set]);
-
-  const handleVoiceInput = useCallback(() => {
-    if (!state.isListening) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => {
-          set('isListening', true);
-          toast({
-            title: "Voice Input Active",
-            description: "Listening for your voice input...",
-          });
-        })
-        .catch(() => {
-          toast({
-            title: "Microphone Access Denied",
-            description: "Please enable microphone access to use voice input.",
-            variant: "destructive"
-          });
-        });
-    } else {
-      set('isListening', false);
-      toast({
-        title: "Voice Input Stopped",
-        description: "Voice input has been disabled.",
+    // Load goals for the selected contact
+    setIsLoading(true);
+    fetch(`/api/goals?contactId=${contact.id}`)
+      .then((res) => res.json())
+      .then((goals) => {
+        set('goals', goals);
+      })
+      .catch((err) => {
+        setError(err);
+        console.error('Error loading goals:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
+  }, [set]);
+
+  const handleSendMessage = useCallback((message: string) => {
+    set('messages', [...state.messages, { text: message, sender: 'user' }]);
+  }, [state.messages, set]);
+
+  const handleVoiceInput = useCallback((transcript: string) => {
+    set('messages', [...state.messages, { text: transcript, sender: 'user' }]);
+  }, [state.messages, set]);
+
+  const handleGoalUpdate = useCallback(async (goalId: string, completed: boolean) => {
+    try {
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to update goal');
+      
+      set('goals', state.goals.map(goal => 
+        goal.id === goalId ? { ...goal, completed } : goal
+      ));
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to update goal'));
+      console.error('Error updating goal:', err);
     }
-  }, [state.isListening, set, toast]);
+  }, [state.goals, set]);
+
+  const handleGoalAdd = useCallback(async (title: string) => {
+    if (!state.selectedContact) return;
+    
+    try {
+      const response = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          contactId: state.selectedContact.id,
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to add goal');
+      
+      const newGoal = await response.json();
+      set('goals', [...state.goals, newGoal]);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to add goal'));
+      console.error('Error adding goal:', err);
+    }
+  }, [state.selectedContact, state.goals, set]);
+
+  useEffect(() => {
+    // Load initial contacts
+    fetch('/api/contacts')
+      .then((res) => res.json())
+      .then((contacts) => {
+        set('contacts', contacts);
+      })
+      .catch((err) => {
+        setError(err);
+        console.error('Error loading contacts:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [set]);
 
   return {
     state,
@@ -151,5 +140,9 @@ export function useWhisperState() {
     handleSelectContact,
     handleSendMessage,
     handleVoiceInput,
+    handleGoalUpdate,
+    handleGoalAdd,
+    isLoading,
+    error,
   };
 }

@@ -5,7 +5,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  company?: string;
+  // company?: string;
   role: 'admin' | 'user';
   phoneNumber?: string;
   createdAt: Date;

@@ -7,6 +7,8 @@ import { CallInterface } from '@/components/Whisper/CallInterface'
 import { WhisperTemplates } from '@/components/Whisper/WhisperTemplates'
 import { ContactSelector } from '@/components/Whisper/ContactSelector'
 import { useWhisperState } from '@/components/Whisper/hooks/useWhisperState'
+import { ContactProvider } from '@/lib/contexts/ContactContext'
+import { ContactForm } from '@/components/ContactList/ContactForm'
 
 export default function WhisperTab() {
   const {
@@ -17,48 +19,59 @@ export default function WhisperTab() {
     handleSelectContact,
     handleSendMessage,
     handleVoiceInput,
+    addContact,
   } = useWhisperState();
 
   return (
-    <TooltipProvider>
-      <div className="container mx-auto p-6 bg-gray-900 text-gray-100">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-teal-400">Whisper Management</h1>
-          <p className="text-gray-400">Manage AI whisper suggestions during calls</p>
-        </div>
-
-        <div className={`grid ${state.activeCall ? 'grid-cols-1' : 'grid-cols-3'} gap-6`}>
-          {!state.activeCall && (
-            <div className="col-span-1">
-              <ContactSelector
-                contacts={state.contacts}
-                selectedContact={state.selectedContact}
-                onSelectContact={handleSelectContact}
-              />
-            </div>
-          )}
-
-          <div className={state.activeCall ? 'col-span-full' : 'col-span-2'}>
-            <Card className="bg-gray-800 border-gray-700">
-              <CallInterface
-                state={state}
-                onStartCall={handleStartCall}
-                onEndCall={handleEndCall}
-                onSendMessage={handleSendMessage}
-                onVoiceInput={handleVoiceInput}
-                onVolumeChange={(value) => set('volume', value)}
-                onMessageChange={(value) => set('userMessage', value)}
-              />
-            </Card>
+    <ContactProvider>
+      <TooltipProvider>
+        <div className="container mx-auto p-6 bg-gray-900 text-gray-100">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-teal-400">Whisper Management</h1>
+            <p className="text-gray-400">Manage AI whisper suggestions during calls</p>
           </div>
 
-          {!state.activeCall && (
-            <div className="col-span-full">
-              <WhisperTemplates />
+          <div className={`grid ${state.activeCall ? 'grid-cols-1' : 'grid-cols-3'} gap-6`}>
+            {!state.activeCall && (
+              <div className="col-span-1">
+                <ContactSelector
+                  contacts={state.contacts}
+                  selectedContact={state.selectedContact}
+                  onSelectContact={handleSelectContact}
+                  showAddContactModal={state.showContactDialog}
+                  setShowAddContactModal={(show) => set('showContactDialog', show)}
+                />
+              </div>
+            )}
+
+            <div className={state.activeCall ? 'col-span-full' : 'col-span-2'}>
+              <Card className="bg-gray-800 border-gray-700">
+                <CallInterface
+                  state={state}
+                  onStartCall={handleStartCall}
+                  onEndCall={handleEndCall}
+                  onSendMessage={handleSendMessage}
+                  onVoiceInput={handleVoiceInput}
+                  onVolumeChange={(value) => set('volume', value)}
+                  onMessageChange={(value) => set('userMessage', value)}
+                />
+              </Card>
             </div>
-          )}
+
+            {!state.activeCall && (
+              <div className="col-span-full">
+                <WhisperTemplates />
+              </div>
+            )}
+          </div>
+
+          <ContactForm
+            isOpen={state.showContactDialog}
+            onClose={() => set('showContactDialog', false)}
+            onSave={addContact}
+          />
         </div>
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ContactProvider>
   )
 }

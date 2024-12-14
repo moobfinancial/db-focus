@@ -1,5 +1,9 @@
 # Whisper Feature: Enhanced UX Workflow
-
+Whisper Feature:
+Entry Point: src/pages/Whisper.tsx
+Main Component: src/components/Whisper/WhisperComponent.tsx
+Uses useWhisperState hook for state management
+Contains subcomponents for goals, templates, and call interfaces
 ## Pre-Call Phase
 
 ### 1. Contact Selection & Setup
